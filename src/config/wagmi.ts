@@ -1,11 +1,14 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { http } from "viem";
-import { sepolia } from "viem/chains";
+import { createConfig, http } from "wagmi";
+import { sepolia } from "wagmi/chains";
+import { injected, metaMask, coinbaseWallet } from "wagmi/connectors";
 
-export const config = getDefaultConfig({
-  appName: "CipherVote DAO",
-  projectId: "ciphervote-demo", // For demo purposes - replace with WalletConnect project ID for production
+export const config = createConfig({
   chains: [sepolia],
+  connectors: [
+    injected(),
+    metaMask(),
+    coinbaseWallet({ appName: "CipherVote DAO" }),
+  ],
   transports: {
     [sepolia.id]: http(),
   },
