@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { Vote, AlertCircle, Lock, PlusCircle } from "lucide-react";
 
 export default function Votes() {
-  const { votes, castVote, isLoading } = useVotes();
+  const { votes, castVote, isLoading, checkHasVoted } = useVotes();
   const { isConnected } = useAccount();
 
   const activeVotes = votes.filter((v) => v.isActive && new Date() < v.endTime);
@@ -17,6 +17,14 @@ export default function Votes() {
   const handleVote = async (voteId: string, choice: boolean) => {
     if (!isConnected) {
       toast.error("Please connect your wallet to vote");
+      return;
+    }
+
+    // Check if already voted
+    if (checkHasVoted(voteId)) {
+      toast.error("Already voted", {
+        description: "You have already cast your vote on this proposal.",
+      });
       return;
     }
 
@@ -31,7 +39,8 @@ export default function Votes() {
         description: "Your encrypted vote has been recorded on-chain.",
         icon: <Lock className="h-4 w-4" />,
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || "Please try again.";
       toast.dismiss(loadingToast);
       toast.error("Failed to submit vote", {
         description: "Please try again.",
