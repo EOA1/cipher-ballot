@@ -1,0 +1,8 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter nextjs-showcase build && cd packages/nextjs-showcase && npx next start -p $PORT"
+  }
+}

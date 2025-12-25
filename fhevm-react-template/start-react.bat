@@ -1,0 +1,3 @@
+@echo off
+echo Starting React Showcase...
+..\node_modules\.bin\pnpm.cmd --filter react-showcase start

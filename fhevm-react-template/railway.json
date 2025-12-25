@@ -1,0 +1,8 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter react-showcase build && npx serve packages/react-showcase/build -p $PORT"
+  }
+}

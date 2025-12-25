@@ -1,0 +1,16 @@
+.env
+node_modules
+.DS_Store
+packages/*/node_modules
+packages/*/.DS_Store
+packages/*/dist
+packages/*/.env
+packages/*/.turbo
+packages/*/coverage
+tmp*
+.vscode
+
+# NPX package folders (these are published separately as npm packages)
+create-fhevm-nextjs/
+create-fhevm-react/
+create-fhevm-vue/

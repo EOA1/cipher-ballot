@@ -1,0 +1,32 @@
+{
+  "name": "nextjs-showcase",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "cd ../hardhat && pnpm exec hardhat test ../nextjs-showcase/test/FHECounter.test.js ../nextjs-showcase/test/FHERatings.test.js ../nextjs-showcase/test/SimpleVoting.test.js",
+    "test:watch": "cd ../hardhat && pnpm exec hardhat test ../nextjs-showcase/test/FHECounter.test.js ../nextjs-showcase/test/FHERatings.test.js ../nextjs-showcase/test/SimpleVoting.test.js --watch"
+  },
+  "dependencies": {
+    "@fhevm-sdk": "workspace:*",
+    "@zama-fhe/relayer-sdk": "^0.3.0-5",
+    "ethers": "^6.13.7",
+    "next": "15.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8",
+    "eslint-config-next": "15.0.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "3.4.0",
+    "typescript": "^5"
+  }
+}

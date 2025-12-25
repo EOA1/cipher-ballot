@@ -1,0 +1,11 @@
+[build]
+  command = "pnpm install && pnpm sdk:build && cd packages/react-showcase && rm -rf node_modules/@fhevm-sdk && ln -sf ../../fhevm-sdk node_modules/@fhevm-sdk && pnpm run build"
+  publish = "packages/react-showcase/build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
