@@ -21,9 +21,9 @@ export default function Index() {
           </div>
 
           <h1 className="mb-6 text-4xl font-bold tracking-tight text-foreground opacity-0 animate-fade-in animation-delay-100 md:text-5xl lg:text-6xl">
-            A secure and encrypted voting platform for{" "}
+            A secure and encrypted voting platform for all{" "}
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              all communities
+              communities
             </span>
           </h1>
 
