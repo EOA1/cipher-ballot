@@ -226,7 +226,7 @@ const VOTING_CONTRACT_ABI = [
 ];
 
 // Contract address for SimpleVoting_uint32
-const VOTING_CONTRACT_ADDRESS = '0x4189777Eb42f68Ce959E498a171e328BfDA90C46'; // Sepolia - Updated for 0.9.1
+const VOTING_CONTRACT_ADDRESS = '0x5Bdeb5390cA4063029F3eF44Bc15F01e8d621260'; // Sepolia - Updated for 0.9.1
 
 interface VotingSession {
   id: number;
@@ -279,7 +279,7 @@ const FheVoting = ({
       setIsLoading(true);
       const provider = new ethers.BrowserProvider(window.ethereum);
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, provider);
-      
+
       const sessionCount = await contract.getSessionCount();
       const sessionsData: VotingSession[] = [];
 
@@ -288,7 +288,7 @@ const FheVoting = ({
           const sessionData = await contract.getSession(i);
           const hasVoted = await contract.hasVoted(i, account);
           const sessionStruct = await contract.sessions(i);
-          
+
           const session: VotingSession = {
             id: i,
             creator: sessionData.creator,
@@ -298,11 +298,11 @@ const FheVoting = ({
             noVotes: Number(sessionData.noVotes),
             hasVoted,
             revealRequested: sessionStruct.revealRequested,
-            canRequestTally: sessionData.creator.toLowerCase() === account.toLowerCase() && 
-                           !sessionData.resolved && 
-                           Date.now() / 1000 > Number(sessionData.endTime)
+            canRequestTally: sessionData.creator.toLowerCase() === account.toLowerCase() &&
+              !sessionData.resolved &&
+              Date.now() / 1000 > Number(sessionData.endTime)
           };
-          
+
           sessionsData.push(session);
         } catch (error) {
           console.error(`Error loading session ${i}:`, error);
@@ -332,14 +332,14 @@ const FheVoting = ({
     try {
       setIsLoading(true);
       onMessage('Creating new voting session...');
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
-      
+
       const tx = await contract.createSession(newSessionDuration * 60); // Convert minutes to seconds
       await tx.wait();
-      
+
       onMessage('Voting session created successfully!');
       await loadSessions();
     } catch (error) {
@@ -357,18 +357,18 @@ const FheVoting = ({
     try {
       setIsVoting(true);
       onMessage(`Casting ${vote} vote...`);
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
-      
+
       // Create encrypted vote using the encrypt hook - handles loading state and errors automatically
       const encryptedVote = await encrypt(VOTING_CONTRACT_ADDRESS, account, vote === 'yes' ? 1 : 0);
-      
+
       // Use the encrypted data and proof from the FHEVM SDK
       const tx = await contract.vote(sessionId, encryptedVote.encryptedData, encryptedVote.proof);
       await tx.wait();
-      
+
       onMessage(`Vote cast successfully!`);
       setSelectedVote(null);
       await loadSessions();
@@ -387,54 +387,54 @@ const FheVoting = ({
     try {
       setIsDecrypting(true);
       onMessage('Fetching encrypted handles...');
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
-      
+
       // Get handles from past TallyRevealRequested event
       const filter = contract.filters.TallyRevealRequested(sessionId);
       const events = await contract.queryFilter(filter);
-      
+
       if (events.length === 0) {
         throw new Error('TallyRevealRequested event not found. Please request tally reveal first.');
       }
-      
+
       // Get the most recent event and parse it
       const latestEvent = events[events.length - 1];
       const parsedEvent = contract.interface.parseLog({
         topics: latestEvent.topics,
         data: latestEvent.data
       });
-      
+
       if (!parsedEvent) {
         throw new Error('Failed to parse TallyRevealRequested event');
       }
-      
+
       const yesVotesHandle = parsedEvent.args.yesVotesHandle;
       const noVotesHandle = parsedEvent.args.noVotesHandle;
-      
+
       onMessage('Decrypting encrypted votes (this may take a moment)...');
-      
+
       // Decrypt both handles using decryptMultiple hook
       const { cleartexts, decryptionProof, values } = await decryptMultiple(
         VOTING_CONTRACT_ADDRESS,
         signer,
         [yesVotesHandle, noVotesHandle]
       );
-      
+
       const [yesVotes, noVotes] = values;
       onMessage(`Decrypted! Yes: ${yesVotes}, No: ${noVotes}. Submitting to contract...`);
-      
+
       // Call resolveTallyCallback with decrypted values and proof
       const callbackTx = await contract.resolveTallyCallback(
         sessionId,
         cleartexts,
         decryptionProof
       );
-      
+
       await callbackTx.wait();
-      
+
       onMessage(`✅ Tally revealed successfully! Yes: ${yesVotes}, No: ${noVotes}`);
       await loadSessions();
     } catch (error: any) {
@@ -458,17 +458,17 @@ const FheVoting = ({
     try {
       setIsRequestingTally(true);
       onMessage('Requesting tally reveal...');
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
-      
+
       // Step 1: Request tally reveal (emits event)
       const tx = await contract.requestTallyReveal(sessionId);
       const receipt = await tx.wait();
-      
+
       onMessage('Tally reveal requested! Decrypting votes...');
-      
+
       // Step 2: Listen for TallyRevealRequested event
       const event = receipt.logs.find((log: any) => {
         try {
@@ -478,41 +478,41 @@ const FheVoting = ({
           return false;
         }
       });
-      
+
       if (!event) {
         throw new Error('TallyRevealRequested event not found');
       }
-      
+
       const parsedEvent = contract.interface.parseLog(event);
       if (!parsedEvent) {
         throw new Error('Failed to parse TallyRevealRequested event');
       }
-      
+
       const yesVotesHandle = parsedEvent.args.yesVotesHandle;
       const noVotesHandle = parsedEvent.args.noVotesHandle;
-      
+
       // Step 3: Decrypt both handles using decryptMultiple hook
       setIsDecrypting(true);
       onMessage('Decrypting encrypted votes (this may take a moment)...');
-      
+
       const { cleartexts, decryptionProof, values } = await decryptMultiple(
         VOTING_CONTRACT_ADDRESS,
         signer,
         [yesVotesHandle, noVotesHandle]
       );
-      
+
       const [yesVotes, noVotes] = values;
       onMessage(`Decrypted! Yes: ${yesVotes}, No: ${noVotes}. Submitting to contract...`);
-      
+
       // Step 4: Call resolveTallyCallback with decrypted values and proof
       const callbackTx = await contract.resolveTallyCallback(
         sessionId,
         cleartexts,
         decryptionProof
       );
-      
+
       await callbackTx.wait();
-      
+
       onMessage(`✅ Tally revealed successfully! Yes: ${yesVotes}, No: ${noVotes}`);
       await loadSessions();
     } catch (error: any) {
@@ -552,23 +552,23 @@ const FheVoting = ({
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, provider);
-      
+
       const sessionData = await contract.getSession(sessionId);
-      
+
       // Update the session with fresh data
-      setSessions(prevSessions => 
-        prevSessions.map(session => 
-          session.id === sessionId 
+      setSessions(prevSessions =>
+        prevSessions.map(session =>
+          session.id === sessionId
             ? {
-                ...session,
-                resolved: sessionData.resolved,
-                yesVotes: Number(sessionData.yesVotes),
-                noVotes: Number(sessionData.noVotes)
-              }
+              ...session,
+              resolved: sessionData.resolved,
+              yesVotes: Number(sessionData.yesVotes),
+              noVotes: Number(sessionData.noVotes)
+            }
             : session
         )
       );
-      
+
       onMessage(`Final tally for Session #${sessionId}: Yes: ${sessionData.yesVotes}, No: ${sessionData.noVotes}`);
     } catch (error) {
       console.error('Error getting final tally:', error);
@@ -581,13 +581,13 @@ const FheVoting = ({
       <div className="glass-card p-8">
         <div className="flex items-center gap-3 mb-6">
           <svg className="w-6 h-6 text-[#FFEB3B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <h2 className="text-2xl font-bold text-white">FHE Voting</h2>
         </div>
         <div className="text-center py-12">
           <svg className="w-16 h-16 text-[#3A3A3A] mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-gray-400">Connect your wallet to use FHE Voting features</p>
         </div>
@@ -600,7 +600,7 @@ const FheVoting = ({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <svg className="w-6 h-6 text-[#FFEB3B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <h2 className="text-2xl font-bold text-white">FHE Voting</h2>
         </div>
@@ -611,12 +611,12 @@ const FheVoting = ({
         >
           {isLoading ? (
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           ) : (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
           )}
           Create Session
@@ -627,7 +627,7 @@ const FheVoting = ({
       <div className="mb-6 p-4 bg-[#0A0A0A] border border-[#FFEB3B]/30 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
           <svg className="w-5 h-5 text-[#FFEB3B]" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
           </svg>
           <span className="text-[#FFEB3B] font-semibold text-sm">How FHE Voting Works</span>
         </div>
@@ -645,174 +645,171 @@ const FheVoting = ({
         {isLoading ? (
           <div className="text-center py-8">
             <svg className="w-8 h-8 text-[#FFEB3B] animate-spin mx-auto mb-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
             <p className="text-gray-400">Loading sessions...</p>
           </div>
         ) : sessions.length === 0 ? (
           <div className="text-center py-8">
             <svg className="w-16 h-16 text-[#3A3A3A] mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-gray-400">No voting sessions found</p>
           </div>
         ) : (
           <>
             {sessions.slice(currentPage * CARDS_PER_PAGE, (currentPage + 1) * CARDS_PER_PAGE).map((session) => (
-            <div key={session.id} className="p-4 bg-[#0A0A0A] border border-gray-700 rounded-lg hover:border-[#FFEB3B] transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Session #{session.id}</h3>
-                  <p className="text-sm text-gray-400">
-                    Created: {formatTime(session.endTime - newSessionDuration)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className={`px-2 py-1 rounded text-xs font-medium ${
-                    isSessionActive(session.endTime) 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-red-500/20 text-red-400'
-                  }`}>
-                    {isSessionActive(session.endTime) ? 'Active' : 'Ended'}
+              <div key={session.id} className="p-4 bg-[#0A0A0A] border border-gray-700 rounded-lg hover:border-[#FFEB3B] transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Session #{session.id}</h3>
+                    <p className="text-sm text-gray-400">
+                      Created: {formatTime(session.endTime - newSessionDuration)}
+                    </p>
                   </div>
-                  {session.hasVoted && (
-                    <div className="mt-1 text-xs text-[#FFEB3B]">Voted</div>
-                  )}
+                  <div className="text-right">
+                    <div className={`px-2 py-1 rounded text-xs font-medium ${isSessionActive(session.endTime)
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-red-500/20 text-red-400'
+                      }`}>
+                      {isSessionActive(session.endTime) ? 'Active' : 'Ended'}
+                    </div>
+                    {session.hasVoted && (
+                      <div className="mt-1 text-xs text-[#FFEB3B]">Voted</div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Voting Interface */}
-              {isSessionActive(session.endTime) && !session.hasVoted && (
-                <div className="mb-4">
-                  <div className="flex gap-2 mb-3">
-                    <button
-                      onClick={() => setSelectedVote(selectedVote === 'yes' ? null : 'yes')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                        selectedVote === 'yes'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                      </svg>
-                      YES
-                    </button>
-                    <button
-                      onClick={() => setSelectedVote(selectedVote === 'no' ? null : 'no')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                        selectedVote === 'no'
-                          ? 'bg-red-600 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                      </svg>
-                      NO
-                    </button>
-                  </div>
-                  
-                  {selectedVote && (
-                    <button
-                      onClick={() => castVote(session.id, selectedVote)}
-                      disabled={isVoting || isEncrypting}
-                      className="w-full btn-primary"
-                      title={encryptError || undefined}
-                    >
-                      {(isVoting || isEncrypting) ? (
-                        <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                {/* Voting Interface */}
+                {isSessionActive(session.endTime) && !session.hasVoted && (
+                  <div className="mb-4">
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => setSelectedVote(selectedVote === 'yes' ? null : 'yes')}
+                        className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${selectedVote === 'yes'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                      >
+                        <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
-                      ) : (
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        YES
+                      </button>
+                      <button
+                        onClick={() => setSelectedVote(selectedVote === 'no' ? null : 'no')}
+                        className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${selectedVote === 'no'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                      >
+                        <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
-                      )}
-                      {(isVoting || isEncrypting) ? 'Processing...' : `Submit ${selectedVote.toUpperCase()} Vote`}
-                    </button>
-                  )}
-                </div>
-              )}
+                        NO
+                      </button>
+                    </div>
 
-              {/* Results */}
-              {session.resolved && (
-                <div className="mb-4 p-3 bg-[#1A1A1A] rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-300 mb-2">Results</h4>
-                  <div className="flex justify-between text-sm mb-3">
-                    <span className="text-green-400">Yes: {session.yesVotes}</span>
-                    <span className="text-red-400">No: {session.noVotes}</span>
+                    {selectedVote && (
+                      <button
+                        onClick={() => castVote(session.id, selectedVote)}
+                        disabled={isVoting || isEncrypting}
+                        className="w-full btn-primary"
+                        title={encryptError || undefined}
+                      >
+                        {(isVoting || isEncrypting) ? (
+                          <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        {(isVoting || isEncrypting) ? 'Processing...' : `Submit ${selectedVote.toUpperCase()} Vote`}
+                      </button>
+                    )}
                   </div>
-                  <button 
-                    onClick={() => getFinalTally(session.id)}
-                    className="w-full px-3 py-2 bg-[#FFEB3B] text-[#0A0A0A] rounded-lg font-semibold text-sm hover:bg-[#FDD835] transition-all duration-200 flex items-center justify-center gap-2"
+                )}
+
+                {/* Results */}
+                {session.resolved && (
+                  <div className="mb-4 p-3 bg-[#1A1A1A] rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Results</h4>
+                    <div className="flex justify-between text-sm mb-3">
+                      <span className="text-green-400">Yes: {session.yesVotes}</span>
+                      <span className="text-red-400">No: {session.noVotes}</span>
+                    </div>
+                    <button
+                      onClick={() => getFinalTally(session.id)}
+                      className="w-full px-3 py-2 bg-[#FFEB3B] text-[#0A0A0A] rounded-lg font-semibold text-sm hover:bg-[#FDD835] transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Get Final Tally
+                    </button>
+                  </div>
+                )}
+
+                {/* Request Tally / Decrypt Button */}
+                {session.canRequestTally && !session.resolved && (
+                  <button
+                    onClick={() => session.revealRequested ? decryptTally(session.id) : requestTallyReveal(session.id)}
+                    disabled={isRequestingTally || isDecrypting || isDecryptingFromHook}
+                    className="w-full btn-secondary"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Get Final Tally
+                    {(isRequestingTally || isDecrypting || isDecryptingFromHook) ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        {isDecrypting || isDecryptingFromHook ? 'Decrypting...' : 'Requesting...'}
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {session.revealRequested ? 'Decrypt Tally' : 'Request Tally Reveal'}
+                      </>
+                    )}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
+            ))}
 
-              {/* Request Tally / Decrypt Button */}
-              {session.canRequestTally && !session.resolved && (
+            {/* Pagination Controls */}
+            {sessions.length > CARDS_PER_PAGE && (
+              <div className="flex items-center justify-center gap-2 mt-4">
                 <button
-                  onClick={() => session.revealRequested ? decryptTally(session.id) : requestTallyReveal(session.id)}
-                  disabled={isRequestingTally || isDecrypting || isDecryptingFromHook}
-                  className="w-full btn-secondary"
+                  onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0}
+                  className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {(isRequestingTally || isDecrypting || isDecryptingFromHook) ? (
-                    <>
-                    <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                    </svg>
-                      {isDecrypting || isDecryptingFromHook ? 'Decrypting...' : 'Requesting...'}
-                    </>
-                  ) : (
-                    <>
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                      {session.revealRequested ? 'Decrypt Tally' : 'Request Tally Reveal'}
-                    </>
-                  )}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                  </svg>
                 </button>
-              )}
-            </div>
-          ))}
-          
-          {/* Pagination Controls */}
-          {sessions.length > CARDS_PER_PAGE && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <button
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-                className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              
-              <span className="px-3 py-1 text-sm text-gray-400">
-                Page {currentPage + 1} of {Math.ceil(sessions.length / CARDS_PER_PAGE)}
-              </span>
-              
-              <button
-                onClick={() => setCurrentPage(Math.min(Math.ceil(sessions.length / CARDS_PER_PAGE) - 1, currentPage + 1))}
-                disabled={currentPage >= Math.ceil(sessions.length / CARDS_PER_PAGE) - 1}
-                className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
-          )}
+
+                <span className="px-3 py-1 text-sm text-gray-400">
+                  Page {currentPage + 1} of {Math.ceil(sessions.length / CARDS_PER_PAGE)}
+                </span>
+
+                <button
+                  onClick={() => setCurrentPage(Math.min(Math.ceil(sessions.length / CARDS_PER_PAGE) - 1, currentPage + 1))}
+                  disabled={currentPage >= Math.ceil(sessions.length / CARDS_PER_PAGE) - 1}
+                  className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -828,11 +825,11 @@ const FheVoting = ({
                 className="text-gray-400 hover:text-white"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -846,7 +843,7 @@ const FheVoting = ({
                   className="w-full px-3 py-2 bg-[#0A0A0A] border border-gray-600 rounded-lg text-white focus:border-[#FFEB3B] focus:outline-none"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Duration (minutes)
@@ -857,7 +854,7 @@ const FheVoting = ({
                     className="p-2 bg-[#374151] border-2 border-[#4B5563] rounded-lg hover:border-[#FFEB3B] hover:bg-[#4B5563] transition-all duration-200 min-w-[2.5rem] h-[2.5rem] flex items-center justify-center"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4"/>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
                     </svg>
                   </button>
                   <input
@@ -872,12 +869,12 @@ const FheVoting = ({
                     className="p-2 bg-[#374151] border-2 border-[#4B5563] rounded-lg hover:border-[#FFEB3B] hover:bg-[#4B5563] transition-all duration-200 min-w-[2.5rem] h-[2.5rem] flex items-center justify-center"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
                   </button>
                 </div>
               </div>
-              
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setShowCreateModal(false)}

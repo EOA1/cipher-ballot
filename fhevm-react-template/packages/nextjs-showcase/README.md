@@ -143,7 +143,7 @@ Same as React showcase (FHEVM 0.9.0):
 - **URL:** http://localhost:3001
 - **FHE Counter Contract:** `0x7A14b454D19A4CB4c55E0386d04Eb0B66e6717EC` (FHEVM 0.9.1)
 - **Ratings Contract:** `0xf80A030984a0AB6111B6e60973A6c16C668ede7a` (FHEVM 0.9.1)
-- **Voting Contract:** `0x4189777Eb42f68Ce959E498a171e328BfDA90C46` (FHEVM 0.9.1)
+- **Voting Contract:** `0x5Bdeb5390cA4063029F3eF44Bc15F01e8d621260` (FHEVM 0.9.1)
 - **Network:** Sepolia testnet (Chain ID: 11155111)
 
 ## 📱 **Usage Flow**
