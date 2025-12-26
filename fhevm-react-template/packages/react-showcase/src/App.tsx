@@ -345,90 +345,89 @@ function App() {
                           {isSwitchingNetwork ? 'Switching...' : 'Switch to Sepolia'}
                         </button>
                       </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="code-text text-[#FFEB3B]">{contractAddress}</span>
+                        <button
+                          onClick={() => switchNetworkToSepolia(true)}
+                          disabled={isSwitchingNetwork}
+                          className="text-xs text-gray-400 hover:text-white underline ml-2"
+                          title="Force update network configuration if RPC is failing"
+                        >
+                          Fix Network
+                        </button>
                       </div>
-                  ) : (
-                  <div className="flex items-center justify-between">
-                    <span className="code-text text-[#FFEB3B]">{contractAddress}</span>
-                    <button
-                      onClick={() => switchNetworkToSepolia(true)}
-                      disabled={isSwitchingNetwork}
-                      className="text-xs text-gray-400 hover:text-white underline ml-2"
-                      title="Force update network configuration if RPC is failing"
-                    >
-                      Fix Network
-                    </button>
-                  </div>
                     )}
+                  </div>
                 </div>
-              </div>
 
                 {/* Error displays */}
-            {networkError && (
-              <div className="info-card border-red-500/30 bg-red-500/5">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-red-400 text-sm">{networkError}</span>
-                </div>
-              </div>
-            )}
-            {walletError && (
-              <div className="info-card border-red-500/30 bg-red-500/5">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-red-400 text-sm">Wallet: {walletError}</span>
-                </div>
-              </div>
-            )}
-            {fhevmError && (
-              <div className="info-card border-red-500/30 bg-red-500/5">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-red-400 text-sm">FHEVM: {fhevmError}</span>
-                </div>
+                {networkError && (
+                  <div className="info-card border-red-500/30 bg-red-500/5">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-red-400 text-sm">{networkError}</span>
+                    </div>
+                  </div>
+                )}
+                {walletError && (
+                  <div className="info-card border-red-500/30 bg-red-500/5">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-red-400 text-sm">Wallet: {walletError}</span>
+                    </div>
+                  </div>
+                )}
+                {fhevmError && (
+                  <div className="info-card border-red-500/30 bg-red-500/5">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-red-400 text-sm">FHEVM: {fhevmError}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-            )}
+
+          {isConnected && fhevmStatus === 'ready' && (
+            <FheVoting
+              account={account}
+              chainId={chainId}
+              isConnected={isConnected}
+              fhevmStatus={fhevmStatus}
+              onMessage={setMessage}
+            />
+          )}
         </div>
 
-        {isConnected && fhevmStatus === 'ready' && (
-          <FheVoting
-            account={account}
-            chainId={chainId}
-            isConnected={isConnected}
-            fhevmStatus={fhevmStatus}
-            onMessage={setMessage}
-          />
-        )}
-    </div>
-
         {
-    isConnected && fhevmStatus === 'ready' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <FheCounter
-          account={account}
-          chainId={chainId}
-          isConnected={isConnected}
-          fhevmStatus={fhevmStatus}
-          onMessage={setMessage}
-        />
+          isConnected && fhevmStatus === 'ready' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <FheCounter
+                account={account}
+                chainId={chainId}
+                isConnected={isConnected}
+                fhevmStatus={fhevmStatus}
+                onMessage={setMessage}
+              />
 
-        <FheRatings
-          account={account}
-          chainId={chainId}
-          isConnected={isConnected}
-          fhevmStatus={fhevmStatus}
-          onMessage={setMessage}
-        />
-      </div>
-    )
-  }
+              <FheRatings
+                account={account}
+                chainId={chainId}
+                isConnected={isConnected}
+                fhevmStatus={fhevmStatus}
+                onMessage={setMessage}
+              />
+            </div>
+          )
+        }
       </main >
     </div >
   );
