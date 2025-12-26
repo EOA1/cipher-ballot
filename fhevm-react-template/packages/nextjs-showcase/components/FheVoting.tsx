@@ -333,12 +333,18 @@ const FheVoting = ({
       setIsLoading(true);
       onMessage('Creating new voting session...');
 
+      console.log('DEBUG: createSession started');
       const provider = new ethers.BrowserProvider(window.ethereum);
+      console.log('DEBUG: Provider created');
       const signer = await provider.getSigner();
+      console.log('DEBUG: Signer obtained:', await signer.getAddress());
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
+      console.log('DEBUG: Contract instance created, calling createSession...');
 
       const tx = await contract.createSession(newSessionDuration * 60); // Convert minutes to seconds
+      console.log('DEBUG: Transaction sent:', tx.hash);
       await tx.wait();
+      console.log('DEBUG: Transaction mined');
 
       onMessage('Voting session created successfully!');
       await loadSessions();
@@ -358,16 +364,23 @@ const FheVoting = ({
       setIsVoting(true);
       onMessage(`Casting ${vote} vote...`);
 
+      console.log('DEBUG: castVote started for session', sessionId);
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      console.log('DEBUG: Signer obtained:', await signer.getAddress());
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
 
       // Create encrypted vote using the encrypt hook - handles loading state and errors automatically
+      console.log('DEBUG: Encrypting vote...');
       const encryptedVote = await encrypt(VOTING_CONTRACT_ADDRESS, account, vote === 'yes' ? 1 : 0);
+      console.log('DEBUG: Encryption complete', encryptedVote);
 
       // Use the encrypted data and proof from the FHEVM SDK
+      console.log('DEBUG: Calling contract.vote...');
       const tx = await contract.vote(sessionId, encryptedVote.encryptedData, encryptedVote.proof);
+      console.log('DEBUG: Vote transaction sent:', tx.hash);
       await tx.wait();
+      console.log('DEBUG: Vote transaction mined');
 
       onMessage(`Vote cast successfully!`);
       setSelectedVote(null);
@@ -670,8 +683,8 @@ const FheVoting = ({
                   </div>
                   <div className="text-right">
                     <div className={`px-2 py-1 rounded text-xs font-medium ${isSessionActive(session.endTime)
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-red-500/20 text-red-400'
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-red-500/20 text-red-400'
                       }`}>
                       {isSessionActive(session.endTime) ? 'Active' : 'Ended'}
                     </div>
@@ -688,8 +701,8 @@ const FheVoting = ({
                       <button
                         onClick={() => setSelectedVote(selectedVote === 'yes' ? null : 'yes')}
                         className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${selectedVote === 'yes'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                           }`}
                       >
                         <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -700,8 +713,8 @@ const FheVoting = ({
                       <button
                         onClick={() => setSelectedVote(selectedVote === 'no' ? null : 'no')}
                         className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${selectedVote === 'no'
-                            ? 'bg-red-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                           }`}
                       >
                         <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
