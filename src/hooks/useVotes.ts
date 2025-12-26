@@ -1,182 +1,323 @@
-// Mock data and hooks for CipherVote
-// In production, this would connect to the Zama FHEVM smart contract
+/**
+ * useVotes Hook - Real FHEVM Integration
+ * Connects to SimpleVoting_uint32 contract on Sepolia using ethers.js
+ */
 
 import { useState, useCallback, useEffect } from "react";
 import { useAccount } from "wagmi";
+import { ethers } from "ethers";
+import { 
+  createEncryptedVote, 
+  getFheInstance, 
+  VOTING_CONTRACT_ADDRESS, 
+  VOTING_CONTRACT_ABI 
+} from "@/lib/fhevm";
 
 export interface Vote {
   id: string;
+  sessionId: number;
   title: string;
   description: string;
   endTime: Date;
   totalVotes: number;
   hasVoted: boolean;
   isActive: boolean;
+  resolved: boolean;
+  yesVotes: number;
+  noVotes: number;
+  creator: string;
+  revealRequested: boolean;
 }
 
-// Mock votes data
-const INITIAL_VOTES: Omit<Vote, "hasVoted">[] = [
-  {
-    id: "1",
-    title: "Increase Treasury Allocation for Development",
-    description: "Proposal to increase the development fund allocation from 20% to 30% of treasury for Q1 2025.",
-    endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-    totalVotes: 42,
-    isActive: true,
-  },
-  {
-    id: "2",
-    title: "Add New Governance Council Member",
-    description: "Vote to add Alice.eth as the 7th member of the governance council with full voting rights.",
-    endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-    totalVotes: 28,
-    isActive: true,
-  },
-  {
-    id: "3",
-    title: "Migrate to New Token Standard",
-    description: "Proposal to migrate from ERC-20 to ERC-4626 vault standard for improved yield distribution.",
-    endTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
-    totalVotes: 156,
-    isActive: true,
-  },
-];
-
-const COMPLETED_VOTES = [
-  {
-    id: "4",
-    title: "Community Grant Program Launch",
-    description: "Allocate 50,000 USDC for the Q4 2024 community grants program.",
-    yesVotes: 89,
-    noVotes: 23,
-    totalVotes: 112,
-    endedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "5",
-    title: "Partnership with Protocol X",
-    description: "Form strategic partnership with Protocol X for cross-chain liquidity.",
-    yesVotes: 145,
-    noVotes: 67,
-    totalVotes: 212,
-    endedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-  },
-];
-
-// Storage key for tracking votes by wallet
-const STORAGE_KEY = "ciphervote_wallet_votes";
-
-interface WalletVotes {
-  [walletAddress: string]: string[]; // Array of vote IDs
+export interface CompletedVote {
+  id: string;
+  sessionId: number;
+  title: string;
+  description: string;
+  yesVotes: number;
+  noVotes: number;
+  totalVotes: number;
+  endedAt: Date;
 }
 
-function getWalletVotes(): WalletVotes {
+// Session metadata storage (title/description not stored on-chain)
+const SESSION_META_KEY = "ciphervote_session_meta";
+
+interface SessionMeta {
+  [sessionId: string]: {
+    title: string;
+    description: string;
+  };
+}
+
+function getSessionMeta(): SessionMeta {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(SESSION_META_KEY);
     return stored ? JSON.parse(stored) : {};
   } catch {
     return {};
   }
 }
 
-function saveWalletVote(walletAddress: string, voteId: string): void {
-  const walletVotes = getWalletVotes();
-  const normalizedAddress = walletAddress.toLowerCase();
-  
-  if (!walletVotes[normalizedAddress]) {
-    walletVotes[normalizedAddress] = [];
-  }
-  
-  if (!walletVotes[normalizedAddress].includes(voteId)) {
-    walletVotes[normalizedAddress].push(voteId);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(walletVotes));
-  }
+function saveSessionMeta(sessionId: number, title: string, description: string): void {
+  const meta = getSessionMeta();
+  meta[sessionId.toString()] = { title, description };
+  localStorage.setItem(SESSION_META_KEY, JSON.stringify(meta));
 }
 
-function hasWalletVoted(walletAddress: string | undefined, voteId: string): boolean {
-  if (!walletAddress) return false;
-  
-  const walletVotes = getWalletVotes();
-  const normalizedAddress = walletAddress.toLowerCase();
-  
-  return walletVotes[normalizedAddress]?.includes(voteId) ?? false;
-}
+// Public RPC for reading data
+const PUBLIC_RPC = 'https://ethereum-sepolia-rpc.publicnode.com';
+
+// Get window with ethereum
+const getEthereum = () => (window as any).ethereum;
 
 export function useVotes() {
-  const { address } = useAccount();
-  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
+  const { address, isConnected } = useAccount();
+  
+  const [votes, setVotes] = useState<Vote[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  // Build votes with hasVoted status based on connected wallet
-  const votes: Vote[] = INITIAL_VOTES.map((vote) => ({
-    ...vote,
-    totalVotes: vote.totalVotes + (voteCounts[vote.id] || 0),
-    hasVoted: hasWalletVoted(address, vote.id),
-  }));
+  // Load sessions from contract
+  const loadSessions = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      const provider = new ethers.JsonRpcProvider(PUBLIC_RPC);
+      const contract = new ethers.Contract(
+        VOTING_CONTRACT_ADDRESS, 
+        VOTING_CONTRACT_ABI, 
+        provider
+      );
 
-  // Re-check vote status when wallet changes
-  useEffect(() => {
-    // This triggers a re-render when address changes
+      const sessionCount = await contract.getSessionCount();
+      const sessionsData: Vote[] = [];
+      const sessionMeta = getSessionMeta();
+
+      for (let i = 0; i < Number(sessionCount); i++) {
+        try {
+          const sessionData = await contract.getSession(i);
+          const sessionStruct = await contract.sessions(i);
+
+          let hasVoted = false;
+          if (address && getEthereum()) {
+            try {
+              const walletProvider = new ethers.BrowserProvider(getEthereum());
+              const walletContract = new ethers.Contract(
+                VOTING_CONTRACT_ADDRESS, 
+                VOTING_CONTRACT_ABI, 
+                walletProvider
+              );
+              hasVoted = await walletContract.hasVoted(i, address);
+            } catch (e) {
+              console.warn('Failed to check hasVoted:', e);
+            }
+          }
+
+          const endTimeMs = Number(sessionData.endTime) * 1000;
+          const isActive = Date.now() < endTimeMs && !sessionData.resolved;
+          
+          // Get metadata or use defaults
+          const meta = sessionMeta[i.toString()] || {
+            title: `Voting Session #${i + 1}`,
+            description: `On-chain encrypted voting session created by ${sessionData.creator.slice(0, 6)}...${sessionData.creator.slice(-4)}`
+          };
+
+          const session: Vote = {
+            id: i.toString(),
+            sessionId: i,
+            title: meta.title,
+            description: meta.description,
+            endTime: new Date(endTimeMs),
+            totalVotes: Number(sessionData.yesVotes) + Number(sessionData.noVotes),
+            hasVoted,
+            isActive,
+            resolved: sessionData.resolved,
+            yesVotes: Number(sessionData.yesVotes),
+            noVotes: Number(sessionData.noVotes),
+            creator: sessionData.creator,
+            revealRequested: sessionStruct.revealRequested,
+          };
+
+          sessionsData.push(session);
+        } catch (err) {
+          console.error(`Error loading session ${i}:`, err);
+        }
+      }
+
+      setVotes(sessionsData);
+    } catch (err) {
+      console.error('Error loading sessions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load sessions');
+    } finally {
+      setIsLoading(false);
+    }
   }, [address]);
 
+  // Load sessions on mount and when dependencies change
+  useEffect(() => {
+    loadSessions();
+  }, [address, loadSessions]);
+
+  // Cast encrypted vote
   const castVote = useCallback(
     async (voteId: string, choice: boolean) => {
-      if (!address) {
+      const ethereum = getEthereum();
+      if (!address || !ethereum) {
         throw new Error("Wallet not connected");
       }
 
-      if (hasWalletVoted(address, voteId)) {
+      const fhe = getFheInstance();
+      if (!fhe) {
+        throw new Error("FHEVM not initialized. Please wait for initialization.");
+      }
+
+      const sessionId = parseInt(voteId);
+      
+      // Check if already voted
+      const vote = votes.find(v => v.id === voteId);
+      if (vote?.hasVoted) {
         throw new Error("You have already voted on this proposal");
       }
 
       setIsLoading(true);
 
-      // Simulate blockchain transaction delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const provider = new ethers.BrowserProvider(ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(
+          VOTING_CONTRACT_ADDRESS, 
+          VOTING_CONTRACT_ABI, 
+          signer
+        );
 
-      // Record the vote for this wallet
-      saveWalletVote(address, voteId);
+        // Create encrypted vote using FHEVM
+        console.log('🔐 Encrypting vote...');
+        const { encryptedData, proof } = await createEncryptedVote(
+          VOTING_CONTRACT_ADDRESS,
+          address,
+          choice
+        );
 
-      // Update vote count
-      setVoteCounts((prev) => ({
-        ...prev,
-        [voteId]: (prev[voteId] || 0) + 1,
-      }));
+        console.log('📤 Submitting encrypted vote to contract...');
+        
+        // Send transaction to contract with high gas for FHE operations
+        const tx = await contract.vote(sessionId, encryptedData, proof, { 
+          gasLimit: 5000000 
+        });
 
-      setIsLoading(false);
-      return true;
+        console.log('⏳ Waiting for transaction confirmation...', tx.hash);
+        await tx.wait();
+
+        console.log('✅ Vote submitted successfully!');
+        
+        // Reload sessions to reflect the vote
+        await loadSessions();
+        
+        return true;
+      } catch (err) {
+        console.error('Vote failed:', err);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
     },
-    [address]
+    [address, votes, loadSessions]
   );
 
   const checkHasVoted = useCallback(
     (voteId: string) => {
-      return hasWalletVoted(address, voteId);
+      const vote = votes.find(v => v.id === voteId);
+      return vote?.hasVoted ?? false;
     },
-    [address]
+    [votes]
   );
 
-  return { votes, castVote, isLoading, checkHasVoted };
+  const refreshVotes = useCallback(() => {
+    return loadSessions();
+  }, [loadSessions]);
+
+  return { 
+    votes, 
+    castVote, 
+    isLoading, 
+    checkHasVoted, 
+    error,
+    refreshVotes,
+    isConnected 
+  };
 }
 
 export function useCompletedVotes() {
-  return { completedVotes: COMPLETED_VOTES };
+  const { votes } = useVotes();
+  
+  const completedVotes: CompletedVote[] = votes
+    .filter(v => v.resolved)
+    .map(v => ({
+      id: v.id,
+      sessionId: v.sessionId,
+      title: v.title,
+      description: v.description,
+      yesVotes: v.yesVotes,
+      noVotes: v.noVotes,
+      totalVotes: v.totalVotes,
+      endedAt: v.endTime,
+    }));
+
+  return { completedVotes };
 }
 
 export function useCreateVote() {
+  const { address } = useAccount();
   const [isCreating, setIsCreating] = useState(false);
 
   const createVote = useCallback(
     async (title: string, description: string, durationHours: number) => {
+      const ethereum = getEthereum();
+      if (!address || !ethereum) {
+        throw new Error("Wallet not connected");
+      }
+
       setIsCreating(true);
 
-      // Simulate blockchain transaction delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const provider = new ethers.BrowserProvider(ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(
+          VOTING_CONTRACT_ADDRESS, 
+          VOTING_CONTRACT_ABI, 
+          signer
+        );
 
-      setIsCreating(false);
-      return { success: true, voteId: Date.now().toString() };
+        // Get current session count before creating
+        const beforeCount = await contract.getSessionCount();
+        const durationSeconds = durationHours * 60 * 60;
+
+        console.log('📝 Creating new voting session...');
+        
+        const tx = await contract.createSession(durationSeconds, { 
+          gasLimit: 500000 
+        });
+
+        console.log('⏳ Waiting for transaction confirmation...', tx.hash);
+        await tx.wait();
+        
+        // Save metadata locally (not stored on-chain)
+        const newSessionId = Number(beforeCount);
+        saveSessionMeta(newSessionId, title, description);
+        
+        console.log('✅ Voting session created!', newSessionId);
+        
+        return { success: true, voteId: newSessionId.toString() };
+      } catch (err) {
+        console.error('Create vote failed:', err);
+        throw err;
+      } finally {
+        setIsCreating(false);
+      }
     },
-    []
+    [address]
   );
 
   return { createVote, isCreating };
