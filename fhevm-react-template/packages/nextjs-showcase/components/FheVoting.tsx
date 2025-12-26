@@ -325,6 +325,25 @@ const FheVoting = ({
     }
   }, [isConnected, isInitialized, account, loadSessions]);
 
+  // Test wallet connection
+  const testConnection = async () => {
+    try {
+      if (!window.ethereum) return;
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      console.log('DEBUG: Testing wallet connection...');
+      const tx = await signer.sendTransaction({
+        to: await signer.getAddress(),
+        value: 0
+      });
+      console.log('DEBUG: Test transaction sent:', tx.hash);
+      alert('Wallet connection working! Transaction sent.');
+    } catch (e: any) {
+      console.error('DEBUG: Test transaction failed:', e);
+      alert('Wallet test failed: ' + e.message);
+    }
+  };
+
   // Create a new voting session
   const createSession = async () => {
     console.log('DEBUG: createSession clicked/called');
@@ -345,7 +364,8 @@ const FheVoting = ({
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, signer);
       console.log('DEBUG: Contract instance created, calling createSession...');
 
-      const tx = await contract.createSession(newSessionDuration * 60); // Convert minutes to seconds
+      // Force gas limit to prevent silent estimation failures
+      const tx = await contract.createSession(newSessionDuration * 60, { gasLimit: 500000 });
       console.log('DEBUG: Transaction sent:', tx.hash);
       await tx.wait();
       console.log('DEBUG: Transaction mined');
@@ -385,7 +405,8 @@ const FheVoting = ({
 
       // Use the encrypted data and proof from the FHEVM SDK
       console.log('DEBUG: Calling contract.vote...');
-      const tx = await contract.vote(sessionId, encryptedVote.encryptedData, encryptedVote.proof);
+      // Force high gas limit for FHE operations
+      const tx = await contract.vote(sessionId, encryptedVote.encryptedData, encryptedVote.proof, { gasLimit: 5000000 });
       console.log('DEBUG: Vote transaction sent:', tx.hash);
       await tx.wait();
       console.log('DEBUG: Vote transaction mined');
