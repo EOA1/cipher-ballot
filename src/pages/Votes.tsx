@@ -6,17 +6,35 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Vote, AlertCircle, Lock, PlusCircle } from "lucide-react";
+import { Vote, AlertCircle, Lock, PlusCircle, Loader2 } from "lucide-react";
+import { useFhevmContext } from "@/contexts/FhevmContext";
 
 export default function Votes() {
   const { votes, castVote, isLoading, checkHasVoted } = useVotes();
   const { isConnected } = useAccount();
+  const { isReady: fhevmReady, status: fhevmStatus, initialize } = useFhevmContext();
 
   const activeVotes = votes.filter((v) => v.isActive && new Date() < v.endTime);
 
   const handleVote = async (voteId: string, choice: boolean) => {
     if (!isConnected) {
       toast.error("Please connect your wallet to vote");
+      return;
+    }
+
+    // Check FHEVM is ready
+    if (!fhevmReady) {
+      if (fhevmStatus === 'loading') {
+        toast.error("Please wait", {
+          description: "Encryption system is still initializing...",
+        });
+      } else {
+        toast.error("Encryption not ready", {
+          description: "Please try again in a moment.",
+        });
+        // Try to initialize again
+        initialize();
+      }
       return;
     }
 
@@ -43,8 +61,9 @@ export default function Votes() {
       const errorMessage = error?.message || "Please try again.";
       toast.dismiss(loadingToast);
       toast.error("Failed to submit vote", {
-        description: "Please try again.",
+        description: errorMessage,
       });
+      console.error("Vote error:", error);
     }
   };
 
@@ -74,6 +93,29 @@ export default function Votes() {
               <AlertCircle className="h-5 w-5 text-primary" />
               <p className="text-sm text-foreground">
                 Connect your wallet to cast votes
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* FHEVM Status */}
+        {isConnected && fhevmStatus === 'loading' && (
+          <Card className="mb-6 border-primary/50 bg-primary/5">
+            <CardContent className="flex items-center gap-3 py-4">
+              <Loader2 className="h-5 w-5 text-primary animate-spin" />
+              <p className="text-sm text-foreground">
+                Initializing encryption system...
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {isConnected && fhevmStatus === 'error' && (
+          <Card className="mb-6 border-destructive/50 bg-destructive/5">
+            <CardContent className="flex items-center gap-3 py-4">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-sm text-foreground">
+                Failed to initialize encryption. Please refresh the page.
               </p>
             </CardContent>
           </Card>

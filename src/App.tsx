@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { config } from "@/config/wagmi";
 import { useEffect, useState } from "react";
+import { FhevmProvider } from "@/contexts/FhevmContext";
 
 import Index from "./pages/Index";
 import CreateVote from "./pages/CreateVote";
@@ -49,16 +50,18 @@ const App = () => {
             borderRadius: "medium",
           })}
         >
-          <Toaster richColors position="top-center" />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/create" element={<CreateVote />} />
-              <Route path="/votes" element={<Votes />} />
-              <Route path="/results" element={<Results />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <FhevmProvider>
+            <Toaster richColors position="top-center" />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/create" element={<CreateVote />} />
+                <Route path="/votes" element={<Votes />} />
+                <Route path="/results" element={<Results />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </FhevmProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
