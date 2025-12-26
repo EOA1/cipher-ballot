@@ -271,13 +271,15 @@ const FheVoting = ({
   const { encrypt, isEncrypting, error: encryptError } = useEncrypt();
   const { decryptMultiple, isDecrypting: isDecryptingFromHook, error: decryptError } = useDecrypt();
 
+  // Fallback provider for reading data if wallet RPC is rate limited
+  const publicProvider = new ethers.JsonRpcProvider('https://ethereum-sepolia-rpc.publicnode.com');
+
   // Load all voting sessions
   const loadSessions = useCallback(async () => {
-    if (!window.ethereum) return;
-
     try {
       setIsLoading(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      // Use public provider for reading to avoid wallet RPC limits (429 errors)
+      const provider = publicProvider;
       const contract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, provider);
 
       const sessionCount = await contract.getSessionCount();
@@ -286,7 +288,19 @@ const FheVoting = ({
       for (let i = 0; i < Number(sessionCount); i++) {
         try {
           const sessionData = await contract.getSession(i);
-          const hasVoted = await contract.hasVoted(i, account);
+          let hasVoted = false;
+
+          // Only check hasVoted if we have an account and window.ethereum is available
+          if (account && window.ethereum) {
+            try {
+              const walletProvider = new ethers.BrowserProvider(window.ethereum);
+              const walletContract = new ethers.Contract(VOTING_CONTRACT_ADDRESS, VOTING_CONTRACT_ABI, walletProvider);
+              hasVoted = await walletContract.hasVoted(i, account);
+            } catch (e) {
+              console.warn('Failed to check hasVoted with wallet, defaulting to false', e);
+            }
+          }
+
           const sessionStruct = await contract.sessions(i);
 
           const session: VotingSession = {
@@ -298,9 +312,9 @@ const FheVoting = ({
             noVotes: Number(sessionData.noVotes),
             hasVoted,
             revealRequested: sessionStruct.revealRequested,
-            canRequestTally: sessionData.creator.toLowerCase() === account.toLowerCase() &&
+            canRequestTally: account ? (sessionData.creator.toLowerCase() === account.toLowerCase() &&
               !sessionData.resolved &&
-              Date.now() / 1000 > Number(sessionData.endTime)
+              Date.now() / 1000 > Number(sessionData.endTime)) : false
           };
 
           sessionsData.push(session);
@@ -312,7 +326,7 @@ const FheVoting = ({
       setSessions(sessionsData);
     } catch (error) {
       console.error('Error loading sessions:', error);
-      onMessage('Failed to load voting sessions');
+      onMessage('Failed to load voting sessions (check console)');
     } finally {
       setIsLoading(false);
     }
