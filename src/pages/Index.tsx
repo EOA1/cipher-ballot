@@ -21,14 +21,14 @@ export default function Index() {
           </div>
 
           <h1 className="mb-6 text-4xl font-bold tracking-tight text-foreground opacity-0 animate-fade-in animation-delay-100 md:text-5xl lg:text-6xl">
-            Private Voting for{" "}
+            A secure and encrypted Voting platform for{" "}
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Decentralized Communities
+              all Communities
             </span>
           </h1>
 
           <p className="mb-8 text-lg text-muted-foreground opacity-0 animate-fade-in animation-delay-200 md:text-xl">
-            CipherVote enables truly private DAO governance. Votes are encrypted before, 
+            CipherVote enables truly private platform for you to express your opinion. Votes are encrypted before, 
             during, and after voting — only the final tally is revealed.
           </p>
 
