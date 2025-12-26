@@ -43,9 +43,11 @@ export function useWallet() {
 
   const connect = useCallback(async () => {
     if (!window.ethereum) {
+      console.log('DEBUG: useWallet connect calling - window.ethereum missing');
       setError('MetaMask not found. Please install MetaMask.');
       return;
     }
+    console.log('DEBUG: useWallet connect called - window.ethereum present', window.ethereum);
 
     setIsConnecting(true);
     setError('');

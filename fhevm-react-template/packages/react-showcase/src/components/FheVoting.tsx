@@ -318,7 +318,11 @@ const FheVoting = ({
 
   // Create a new voting session
   const createSession = async () => {
-    if (!window.ethereum || !account) return;
+    console.log('DEBUG: createSession clicked/called');
+    if (!window.ethereum || !account) {
+      console.log('DEBUG: createSession aborted - missing ethereum or account', { ethereum: !!window.ethereum, account });
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -349,7 +353,11 @@ const FheVoting = ({
 
   // Cast a vote
   const castVote = async (sessionId: number, vote: 'yes' | 'no') => {
-    if (!window.ethereum || !account) return;
+    console.log('DEBUG: castVote clicked/called for session', sessionId, vote);
+    if (!window.ethereum || !account) {
+      console.log('DEBUG: castVote aborted - missing ethereum or account');
+      return;
+    }
 
     try {
       setIsVoting(true);
