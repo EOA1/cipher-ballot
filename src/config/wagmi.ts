@@ -1,15 +1,37 @@
-import { createConfig, http } from "wagmi";
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { sepolia } from "wagmi/chains";
-import { injected, metaMask, coinbaseWallet } from "wagmi/connectors";
+import {
+  metaMaskWallet,
+  coinbaseWallet,
+  walletConnectWallet,
+  injectedWallet,
+  rainbowWallet,
+  trustWallet,
+} from "@rainbow-me/rainbowkit/wallets";
 
-export const config = createConfig({
+// WalletConnect project ID - required for mobile wallet connections
+const WALLETCONNECT_PROJECT_ID = "3a8170812b534d0ff9d794f19a901d64";
+
+export const config = getDefaultConfig({
+  appName: "CipherVote DAO",
+  projectId: WALLETCONNECT_PROJECT_ID,
   chains: [sepolia],
-  connectors: [
-    injected(),
-    metaMask(),
-    coinbaseWallet({ appName: "CipherVote DAO" }),
+  wallets: [
+    {
+      groupName: "Popular",
+      wallets: [
+        metaMaskWallet,
+        coinbaseWallet,
+        walletConnectWallet,
+        rainbowWallet,
+      ],
+    },
+    {
+      groupName: "More",
+      wallets: [
+        trustWallet,
+        injectedWallet,
+      ],
+    },
   ],
-  transports: {
-    [sepolia.id]: http(),
-  },
 });
